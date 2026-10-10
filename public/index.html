@@ -41,10 +41,11 @@ dialog button{padding:5px 9px}dialog button.p{padding:10px}
 dialog textarea{min-height:60px;font-size:.8125rem;line-height:1.4;padding:7px 9px;border-radius:8px;background:var(--bg);margin:3px 0 10px;font-family:inherit}
 #dmsg{color:var(--acc);font-size:.75rem;min-height:1em;margin-bottom:6px}
 dialog .slot input{margin:0 0 5px}
+@supports (-webkit-touch-callout:none){main{padding-top:44px}}
 </style></head><body><main>
 <header><h1>Mandarin Taiwan 國語</h1><div class="hb"><button class="ic" id="thm"></button><button class="ic" id="cfg" aria-label="Pengaturan" title="Pengaturan"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button></div></header>
 <textarea id="in" lang="" placeholder="Ketik kata/kalimat Indonesia, atau Hanzi (sederhana pun boleh)"></textarea>
-<div class="row"><label><input type="checkbox" id="auto"> Selalu sertakan penjelasan &amp; contoh</label><button id="clr">Hapus</button></div>
+<div class="row"><label><input type="checkbox" id="auto"> Selalu sertakan penjelasan &amp; contoh</label><span><button id="rf" title="Terjemahkan ulang tanpa cache">Ulang</button> <button id="clr">Hapus</button></span></div>
 <button class="p" id="go">Terjemahkan</button>
 <div id="err"></div>
 <div id="out"></div>
@@ -60,6 +61,7 @@ dialog .slot input{margin:0 0 5px}
 <p style="margin-top:12px">Urutan dari atas ke bawah. Kalau satu kena limit atau error, otomatis pindah ke berikutnya. Kunci hanya disimpan di browser ini.</p>
 <label for="cr">Koreksi pinyin (satu per baris, contoh: 車=chē atau 垃圾=lè sè)</label><textarea id="cr" lang="" rows="3" placeholder="車=chē"></textarea>
 <label for="tw">Kamus gaya Taiwan (daratan=Taiwan, satu per baris, mis. 視頻=影片). Tulis 星期=星期 untuk membatalkan penggantian bawaan</label><textarea id="tw" lang="" rows="3" placeholder="外賣=外送"></textarea>
+<button type="button" id="cc" style="width:100%;margin-bottom:8px"></button>
 <button class="p" id="save" value="ok">Simpan</button></form></dialog>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3/dist/index.js"></script>
 <script>
@@ -157,7 +159,7 @@ $('sl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;con
  else if(i>0){[slots[i-1],slots[i]]=[slots[i],slots[i-1]];dmsg('Urutan diubah')}
  for(const k in cool)delete cool[k];saveSlots();drawSlots()});
 $('add').onclick=()=>{slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});saveSlots();drawSlots();dmsg('Penyedia ditambahkan, isi API key-nya')};
-$('cfg').onclick=()=>{if(!slots.length)slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});drawSlots();$('dlg').showModal();document.activeElement&&document.activeElement.blur()};
+$('cfg').onclick=()=>{if(!slots.length)slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});drawSlots();ccl();$('dlg').showModal();document.activeElement&&document.activeElement.blur()};
 let tin=0,tout=0;function meta(r,n){tin+=r.i;tout+=r.o;$('meta').textContent=`Via ${n}${r.big?' (reasoning)':''} · permintaan ini: ${r.i} masuk, ${r.o} keluar · total sejak dibuka: ${tin}/${tout}`}
 function save(){const k=Object.keys(cache);if(k.length>300)delete cache[k[0]];L.setItem('tr_c3',JSON.stringify(cache))}
 const ICC='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',ICK='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',ICS='<svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
@@ -189,11 +191,11 @@ async function explain(c){
  const k=(pm()==='ai'?'h|':'g|')+c.h;c.ex.disabled=true;$('err').textContent='';
  try{const t=cache[k]||await api(pm()==='ai'?S2A:S2,c.h,pm()==='ai'?600:450);cache[k]=t;save();c.pre.textContent=fmtExp(t);c.pre.style.display='block'}
  catch(e){$('err').textContent='Gagal: '+e.message}c.ex.disabled=false}
-async function go(){
+async function go(force){
  const text=$('in').value.trim();$('err').textContent='';if(!text)return;
  $('go').disabled=true;$('go').textContent='Menerjemahkan…';
  try{const ai=pm()==='ai',n=/[\u3400-\u9fff]/.test(text)?1:nv(),m=mp(),k='z|'+(ai?'a':'l')+n+(m?'2':'1')+'|'+text;
-  let rs=cache[k]?JSON.parse(cache[k]):null;
+  let rs=(!force&&cache[k])?JSON.parse(cache[k]):null;
   if(!rs){const sys=sys1(n)+hints(text),max=Math.min(2000,(text.length*(ai?6:4)+150)*n);
    if(m&&slots.filter(s=>s.k).length>1)rs=await apiMulti(sys,text,max,2);
    else rs=[{l:'',x:await api(sys,text,max)}];
@@ -202,7 +204,7 @@ async function go(){
   const f=renderAll(rs);if($('auto').checked&&f)await explain(f)}
  catch(e){$('err').textContent='Gagal: '+e.message}
  $('go').disabled=false;$('go').textContent='Terjemahkan'}
-$('go').onclick=go;
+$('go').onclick=()=>go();$('rf').onclick=()=>go(true);
 $('in').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))go()});
 $('clr').onclick=()=>{$('in').value='';$('out').textContent='';$('err').textContent='';cur=null};
 $('auto').checked=L.getItem('tr_auto')==='1';$('auto').onchange=()=>L.setItem('tr_auto',$('auto').checked?'1':'0');
@@ -224,6 +226,8 @@ $('cr').value=L.getItem('tr_cr')||'';$('cr').oninput=()=>{L.setItem('tr_cr',$('c
 $('nv').value=nv();$('nv').onchange=()=>L.setItem('tr_nv',$('nv').value);
 $('mp').value=mp()?'1':'0';$('mp').onchange=()=>L.setItem('tr_mp',$('mp').value);
 $('gt').value=L.getItem('tr_gt')||'off';$('gt').onchange=()=>L.setItem('tr_gt',$('gt').value);
+function ccl(){$('cc').textContent='Hapus cache terjemahan ('+Object.keys(cache).length+')'}
+$('cc').onclick=()=>{if(!Object.keys(cache).length||confirm('Hapus semua hasil terjemahan yang tersimpan?')){cache={};L.removeItem('tr_c3');$('cc').textContent='Cache dihapus';setTimeout(ccl,1500)}};
 $('pm').value=pm();$('pm').onchange=()=>L.setItem('tr_pm',$('pm').value);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></main></body></html>
