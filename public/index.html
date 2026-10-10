@@ -53,6 +53,7 @@ dialog .slot input{margin:0 0 5px}
 <label for="pm">Sumber pinyin</label><select id="pm"><option value="lib">Pustaka lokal (hemat token)</option><option value="ai">AI (lebih boros token)</option></select>
 <label for="nv">Variasi terjemahan per input</label><select id="nv"><option value="1">1 (hemat token)</option><option value="2">2 variasi</option><option value="3">3 variasi</option></select>
 <label for="mp">Jawaban dari 2 penyedia sekaligus</label><select id="mp"><option value="0">Mati (hemat token)</option><option value="1">Aktif (token 2x)</option></select>
+<label for="gt">Thinking Gemini</label><select id="gt"><option value="off">Mati (hemat token)</option><option value="low">Rendah</option><option value="auto">Otomatis (paling boros)</option></select>
 <label for="ft">Ukuran teks terjemahan: <span id="ftv"></span></label><input type="range" id="ft" min="80" max="160" step="5">
 <label for="fa">Ukuran teks aplikasi: <span id="fav"></span></label><input type="range" id="fa" min="80" max="130" step="5">
 <div id="dmsg"></div><div id="sl"></div><button type="button" id="add">+ Tambah penyedia</button>
@@ -93,9 +94,10 @@ async function call(s,system,text,max){
   pick=d=>[d.content.map(c=>c.text||'').join(''),d.usage.input_tokens,d.usage.output_tokens,d.stop_reason==='max_tokens']}
  else if(t==='gemini'){url='https://generativelanguage.googleapis.com/v1beta/models/'+m+':generateContent';h['x-goog-api-key']=k;
   b={systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text}]}],generationConfig:{temperature:0,maxOutputTokens:max}};
-  const th=s.nt?null:/2\.5-flash/.test(m)?{thinkingBudget:0}:/gemini-3/.test(m)?{thinkingLevel:'low'}:null;
+  const gt=L.getItem('tr_gt')||'off';
+  const th=(s.nt||gt==='auto')?null:/2\.5-/.test(m)?{thinkingBudget:gt==='low'?512:0}:/gemini-3/.test(m)?{thinkingLevel:'low'}:null;
   if(th)b.generationConfig.thinkingConfig=th;
-  if(!(th&&th.thinkingBudget===0))b.generationConfig.maxOutputTokens=max+800;
+  b.generationConfig.maxOutputTokens=max+((th&&th.thinkingBudget===0)?0:(th?1500:4000));
   pick=d=>[(d.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''),d.usageMetadata?.promptTokenCount||0,(d.usageMetadata?.candidatesTokenCount||0)+(d.usageMetadata?.thoughtsTokenCount||0),d.candidates?.[0]?.finishReason==='MAX_TOKENS']}
  else{url=b0+'/chat/completions';h.authorization='Bearer '+k;
   b={model:m,max_tokens:max+(s.big?3000:0),temperature:0,messages:[{role:'system',content:system},{role:'user',content:text}]};
@@ -221,6 +223,7 @@ $('tw').value=L.getItem('tr_tw')||'';$('tw').oninput=()=>L.setItem('tr_tw',$('tw
 $('cr').value=L.getItem('tr_cr')||'';$('cr').oninput=()=>{L.setItem('tr_cr',$('cr').value);applyCr()};
 $('nv').value=nv();$('nv').onchange=()=>L.setItem('tr_nv',$('nv').value);
 $('mp').value=mp()?'1':'0';$('mp').onchange=()=>L.setItem('tr_mp',$('mp').value);
+$('gt').value=L.getItem('tr_gt')||'off';$('gt').onchange=()=>L.setItem('tr_gt',$('gt').value);
 $('pm').value=pm();$('pm').onchange=()=>L.setItem('tr_pm',$('pm').value);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script></main></body></html>
