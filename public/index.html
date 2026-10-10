@@ -58,19 +58,25 @@ dialog .slot input{margin:0 0 5px}
 <div id="dmsg"></div><div id="sl"></div><button type="button" id="add">+ Tambah penyedia</button>
 <p style="margin-top:12px">Urutan dari atas ke bawah. Kalau satu kena limit atau error, otomatis pindah ke berikutnya. Kunci hanya disimpan di browser ini.</p>
 <label for="cr">Koreksi pinyin (satu per baris, contoh: 車=chē atau 垃圾=lè sè)</label><textarea id="cr" lang="" rows="3" placeholder="車=chē"></textarea>
+<label for="tw">Kamus gaya Taiwan (daratan=Taiwan, satu per baris, mis. 視頻=影片). Tulis 星期=星期 untuk membatalkan penggantian bawaan</label><textarea id="tw" lang="" rows="3" placeholder="外賣=外送"></textarea>
 <button class="p" id="save" value="ok">Simpan</button></form></dialog>
 <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3/dist/index.js"></script>
 <script>
 const $=id=>document.getElementById(id),L=localStorage;
 let cache=JSON.parse(L.getItem('tr_c3')||'{}'),cur=null;
-const S1='Penerjemah ke Mandarin Tradisional Taiwan (國語). Input: Indonesia atau Hanzi (termasuk Hanzi sederhana/daratan, ubah ke gaya Taiwan). Pakai kosakata, istilah, dan tanda baca Taiwan (mis. 捷運, 軟體, 影片, 計程車, 「」), bukan daratan. Jangan tulis pinyin. Balas persis 2 baris, tanpa tambahan:\nHanzi\nArti Indonesia';
+const S1='Penerjemah ke Mandarin Tradisional Taiwan (國語). Input: Indonesia atau Hanzi (termasuk Hanzi sederhana/daratan, ubah ke gaya Taiwan). Pakai kosakata, istilah, dan tanda baca Taiwan (mis. 捷運, 軟體, 影片, 計程車, 「」), bukan daratan; gaya lisan sehari-hari Taiwan. Jangan tulis pinyin. Balas persis 2 baris, tanpa tambahan:\nHanzi\nArti Indonesia';
 const S2='Jelaskan singkat dalam bahasa Indonesia untuk teks Mandarin Taiwan dari pengguna. Jangan tulis pinyin. Format 3 bagian dipisah baris berisi ---: (1) satu baris per karakter/partikel penting (maks 6): 字 = arti. (2) satu contoh kalimat gaya Taiwan, 2 baris: Hanzi / arti. (3) satu kalimat catatan singkat (nuansa, penggunaan, atau tata bahasa), hanya jika berguna. Tanpa tambahan.';
-const S1A='Penerjemah ke Mandarin Tradisional Taiwan (國語). Input: Indonesia atau Hanzi (termasuk Hanzi sederhana/daratan, ubah ke gaya Taiwan). Pakai kosakata, istilah, dan tanda baca Taiwan (mis. 捷運, 軟體, 影片, 計程車, 「」), bukan daratan. Pinyin bernada dengan pelafalan standar Taiwan (mis. 垃圾 lèsè, 星期 xīngqí, 研究 yánjiù, 車 chē); pilih bacaan sesuai konteks untuk karakter berbunyi ganda. Balas persis 3 baris, tanpa tambahan:\nHanzi\nPinyin\nArti Indonesia';
+const S1A='Penerjemah ke Mandarin Tradisional Taiwan (國語). Input: Indonesia atau Hanzi (termasuk Hanzi sederhana/daratan, ubah ke gaya Taiwan). Pakai kosakata, istilah, dan tanda baca Taiwan (mis. 捷運, 軟體, 影片, 計程車, 「」), bukan daratan; gaya lisan sehari-hari Taiwan. Pinyin bernada dengan pelafalan standar Taiwan (mis. 垃圾 lèsè, 星期 xīngqí, 研究 yánjiù, 車 chē); pilih bacaan sesuai konteks untuk karakter berbunyi ganda. Balas persis 3 baris, tanpa tambahan:\nHanzi\nPinyin\nArti Indonesia';
 const S2A='Jelaskan singkat dalam bahasa Indonesia untuk teks Mandarin Taiwan dari pengguna. Pinyin pakai pelafalan Taiwan (車 = chē). Format 3 bagian dipisah baris berisi ---: (1) satu baris per karakter/partikel penting (maks 6): 字 (pinyin) = arti. (2) satu contoh kalimat gaya Taiwan, 3 baris: Hanzi / Pinyin / arti. (3) satu kalimat catatan singkat (nuansa, penggunaan, atau tata bahasa), hanya jika berguna. Tanpa tambahan.';
 const pm=()=>L.getItem('tr_pm')||'lib';
 const TW={'車':'chē','垃圾':'lè sè','研究':'yán jiù','星期':'xīng qí','角色':'jué sè','說服':'shuì fú','危險':'wéi xiǎn','微笑':'wéi xiào','期待':'qí dài'};
 function applyCr(){const o={...TW};for(const l of (L.getItem('tr_cr')||'').split('\n')){const i=l.indexOf('=');if(i>0){const k=l.slice(0,i).trim(),v=l.slice(i+1).trim();if(k&&v)o[k]=v}}try{pinyinPro.customPinyin(o)}catch(e){}}
 applyCr();
+const MV={'出租車':'計程車','地鐵':'捷運','軟件':'軟體','視頻':'影片','網絡':'網路','鼠標':'滑鼠','屏幕':'螢幕','公交車':'公車','自行車':'腳踏車','便利店':'便利商店','方便麵':'泡麵','充電寶':'行動電源','短信':'簡訊','激光':'雷射','外賣':'外送','打印機':'印表機','星期':'禮拜'};
+function twMap(){const o={...MV};for(const l of (L.getItem('tr_tw')||'').split('\n')){const i=l.indexOf('=');if(i>0){const k=l.slice(0,i).trim(),v=l.slice(i+1).trim();if(k&&v)o[k]=v}}return o}
+function twFix(t){const o=twMap();let r=t;for(const k of Object.keys(o).sort((a,b)=>b.length-a.length))r=r.split(k).join(o[k]);return r}
+const HT=[[/\b(senin|selasa|rabu|kamis|jum'?at|sabtu|minggu|pekan)\b/i,'Hari/pekan: pakai 禮拜 (禮拜一…禮拜天), bukan 星期.'],[/\b(cod|ketemuan|kopdar|tatap muka|bertemu langsung)\b/i,'Transaksi bertemu langsung/COD: 面交; COD kurir: 貨到付款.'],[/\bsepeda\b/i,'Sepeda: 腳踏車.']];
+const hints=t=>{const h=HT.filter(x=>x[0].test(t)).map(x=>x[1]).join(' ');return h?' Catatan: '+h:''};
 const py=t=>{try{return pinyinPro.pinyin(t)}catch(e){return ''}};
 const T={anthropic:{n:'Claude',m:'claude-haiku-5-5'},gemini:{n:'Gemini',m:'gemini-2.5-flash'},groq:{n:'Groq',m:'llama-3.3-70b-versatile',b:'https://api.groq.com/openai/v1'},openrouter:{n:'OpenRouter',m:'google/gemini-2.5-flash',b:'https://openrouter.ai/api/v1'},openai:{n:'OpenAI',m:'gpt-4o-mini',b:'https://api.openai.com/v1'},custom:{n:'Kustom (OpenAI-kompatibel)',m:'',b:''}};
 const rid=()=>Math.random().toString(36).slice(2,8);
@@ -149,13 +155,13 @@ $('sl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;con
  for(const k in cool)delete cool[k];saveSlots();drawSlots()});
 $('add').onclick=()=>{slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});saveSlots();drawSlots();dmsg('Penyedia ditambahkan, isi API key-nya')};
 $('cfg').onclick=()=>{if(!slots.length)slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});drawSlots();$('dlg').showModal();document.activeElement&&document.activeElement.blur()};
-let tin=0,tout=0;function meta(r,n){tin+=r.i;tout+=r.o;$('meta').textContent=`Via ${n} · permintaan ini: ${r.i} masuk, ${r.o} keluar · total sesi: ${tin}/${tout}`}
+let tin=0,tout=0;function meta(r,n){tin+=r.i;tout+=r.o;$('meta').textContent=`Via ${n} · permintaan ini: ${r.i} masuk, ${r.o} keluar · total sejak dibuka: ${tin}/${tout}`}
 function save(){const k=Object.keys(cache);if(k.length>300)delete cache[k[0]];L.setItem('tr_c3',JSON.stringify(cache))}
 const ICC='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',ICK='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',ICS='<svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 function parse(x){const ai=pm()==='ai',n=ai?3:2;
  return x.split(/^\s*-{3,}\s*$/m).map(b=>b.split('\n').map(l=>l.trim()).filter(Boolean)).filter(b=>b.length).map(ls=>{
-  if(ls.length>n+3)ls=ls.slice(-n);const h=ls[0]||'',u=ai&&ls.length>=3;
-  return{h,p:u?ls[1]:(py(h)||'(pinyin belum termuat, buka sekali dengan internet)'),a:u?ls.slice(2).join(' '):(ls[1]||'')}})}
+  if(ls.length>n+3)ls=ls.slice(-n);const h0=ls[0]||'',h=twFix(h0),ch=h!==h0,u=ai&&ls.length>=3;
+  return{h,p:u&&!ch?ls[1]:(py(h)||'(pinyin belum termuat, buka sekali dengan internet)'),a:u?ls.slice(2).join(' '):(ls[1]||'')}})}
 function mkCard(v,lab){const d=document.createElement('div');d.className='res';
  d.innerHTML=(lab?'<div class="lb"></div>':'')+'<div class="hz"></div><div class="pn"></div><div class="ar"></div><div class="act"><button class="ic sp" aria-label="Dengarkan" title="Dengarkan">'+ICS+'</button><button class="ex">Jelaskan</button><button class="ic cp" aria-label="Salin Hanzi" title="Salin Hanzi">'+ICC+'</button></div><pre></pre>';
  if(lab)d.querySelector('.lb').textContent=lab;
@@ -183,9 +189,9 @@ async function explain(c){
 async function go(){
  const text=$('in').value.trim();$('err').textContent='';if(!text)return;
  $('go').disabled=true;$('go').textContent='Menerjemahkan…';
- try{const ai=pm()==='ai',n=/[\u3400-\u9fff]/.test(text)?1:nv(),m=mp(),k='y|'+(ai?'a':'l')+n+(m?'2':'1')+'|'+text;
+ try{const ai=pm()==='ai',n=/[\u3400-\u9fff]/.test(text)?1:nv(),m=mp(),k='z|'+(ai?'a':'l')+n+(m?'2':'1')+'|'+text;
   let rs=cache[k]?JSON.parse(cache[k]):null;
-  if(!rs){const sys=sys1(n),max=Math.min(2000,(text.length*(ai?6:4)+150)*n);
+  if(!rs){const sys=sys1(n)+hints(text),max=Math.min(2000,(text.length*(ai?6:4)+150)*n);
    if(m&&slots.filter(s=>s.k).length>1)rs=await apiMulti(sys,text,max,2);
    else rs=[{l:'',x:await api(sys,text,max)}];
    if(rs.every(r=>r.x)){cache[k]=JSON.stringify(rs);save()}
@@ -210,6 +216,7 @@ function speak(t){if(!t)return;if(!('speechSynthesis' in window)){alert('Perangk
 function applyFs(){const r=document.documentElement.style;r.setProperty('--ft',(L.getItem('tr_ft')||100)/100);r.setProperty('--fa',(L.getItem('tr_fa')||100)/100)}
 for(const [id,key,vid] of [['ft','tr_ft','ftv'],['fa','tr_fa','fav']]){const e=$(id);e.value=L.getItem(key)||100;$(vid).textContent=e.value+'%';e.oninput=()=>{L.setItem(key,e.value);$(vid).textContent=e.value+'%';applyFs()}}
 applyFs();
+$('tw').value=L.getItem('tr_tw')||'';$('tw').oninput=()=>L.setItem('tr_tw',$('tw').value);
 $('cr').value=L.getItem('tr_cr')||'';$('cr').oninput=()=>{L.setItem('tr_cr',$('cr').value);applyCr()};
 $('nv').value=nv();$('nv').onchange=()=>L.setItem('tr_nv',$('nv').value);
 $('mp').value=mp()?'1':'0';$('mp').onchange=()=>L.setItem('tr_mp',$('mp').value);
