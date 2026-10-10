@@ -98,7 +98,7 @@ async function call(s,system,text,max){
   if(!(th&&th.thinkingBudget===0))b.generationConfig.maxOutputTokens=max+800;
   pick=d=>[(d.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''),d.usageMetadata?.promptTokenCount||0,(d.usageMetadata?.candidatesTokenCount||0)+(d.usageMetadata?.thoughtsTokenCount||0),d.candidates?.[0]?.finishReason==='MAX_TOKENS']}
  else{url=b0+'/chat/completions';h.authorization='Bearer '+k;
-  b={model:m,max_tokens:max,temperature:0,messages:[{role:'system',content:system},{role:'user',content:text}]};
+  b={model:m,max_tokens:max+(s.big?3000:0),temperature:0,messages:[{role:'system',content:system},{role:'user',content:text}]};
   if(s.x){try{Object.assign(b,JSON.parse(s.x))}catch(e){}}
   if(t==='openrouter')b.reasoning=s.rt?{effort:'low',exclude:true}:{enabled:false};
   pick=d=>{const c=d.choices?.[0]?.message?.content;return [Array.isArray(c)?c.map(p=>p.text||'').join(''):(c||d.choices?.[0]?.text||''),d.usage?.prompt_tokens||0,d.usage?.completion_tokens||0,d.choices?.[0]?.finish_reason==='length']}}
@@ -109,10 +109,11 @@ async function call(s,system,text,max){
   if(t==='openrouter'&&!s.rt&&/reasoning|mandatory/i.test(msg))return call({...s,rt:1},system,text,max);
   throw{st:r.status,msg}}
  const [raw,i,o,cut]=pick(d);const x=raw.replace(/<think>[\s\S]*?(<\/think>|$)/gi,'').replace(/```/g,'').trim();
-  if(cut&&(t==='anthropic'||t==='gemini')&&(x.split('\n').filter(l=>l.trim()).length<2||!/[\u3400-\u9fff]/.test(x)))throw{st:0,msg:'jawaban terpotong (token habis, model mungkin berpikir panjang), coba model lain'};
+  if(t!=='anthropic'&&t!=='gemini'&&!s.big&&(!x||cut&&!/[㐀-鿿]/.test(x))){s.big=true;try{saveSlots()}catch(e){}const r2=await call(s,system,text,max);r2.i+=i;r2.o+=o;return r2}
+ if(cut&&(t==='anthropic'||t==='gemini')&&(x.split('\n').filter(l=>l.trim()).length<2||!/[\u3400-\u9fff]/.test(x)))throw{st:0,msg:'jawaban terpotong (token habis, model mungkin berpikir panjang), coba model lain'};
  if(!x)throw{st:0,msg:'respons kosong'+((t==='anthropic'||t==='gemini')?'':' (model kemungkinan berpikir panjang dan kehabisan token; isi Parameter tambahan untuk mematikan reasoning atau pakai model non-reasoning)')};
  if(!/[\u3400-\u9fff]/.test(x))throw{st:0,msg:'jawaban tanpa Hanzi (model reasoning atau terpotong), coba model lain'};
- return{x,i,o}}
+ return{x,i,o,big:!!s.big&&t!=='anthropic'&&t!=='gemini'}}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function callR(s,system,text,max){
  for(let i=0;;i++){try{return await call(s,system,text,max)}
@@ -146,7 +147,7 @@ function drawSlots(){const sl=$('sl');sl.textContent='';
   d.querySelector('b').textContent=lbl(i);for(const f of ['n','k','m','b','x'])d.querySelector('[data-f='+f+']').value=s[f]||'';
   if(s.t==='anthropic'||s.t==='gemini'){d.querySelector('[data-f=b]').style.display='none';d.querySelector('[data-f=x]').style.display='none'}
   sl.append(d)})}
-$('sl').addEventListener('input',e=>{const f=e.target.dataset.f;if(!f)return;const s=slots[e.target.closest('.slot').dataset.i];
+$('sl').addEventListener('input',e=>{const f=e.target.dataset.f;if(!f)return;const s=slots[e.target.closest('.slot').dataset.i];if(f==='m'||f==='t')delete s.big;
  if(f==='t'){s.t=e.target.value;s.m=T[s.t].m;s.b=T[s.t].b||'';drawSlots()}else{s[f]=e.target.value.trim();if(f==='n')e.target.closest('.slot').querySelector('b').textContent=lbl(+e.target.closest('.slot').dataset.i)}saveSlots();for(const k in cool)delete cool[k]});
 function dmsg(t){const m=$('dmsg');m.textContent=t;clearTimeout(dmsg.t);dmsg.t=setTimeout(()=>m.textContent='',3000)}
 $('sl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;const i=+e.target.closest('.slot').dataset.i;
@@ -155,7 +156,7 @@ $('sl').addEventListener('click',e=>{const a=e.target.dataset.a;if(!a)return;con
  for(const k in cool)delete cool[k];saveSlots();drawSlots()});
 $('add').onclick=()=>{slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});saveSlots();drawSlots();dmsg('Penyedia ditambahkan, isi API key-nya')};
 $('cfg').onclick=()=>{if(!slots.length)slots.push({id:rid(),t:'gemini',k:'',m:T.gemini.m,b:''});drawSlots();$('dlg').showModal();document.activeElement&&document.activeElement.blur()};
-let tin=0,tout=0;function meta(r,n){tin+=r.i;tout+=r.o;$('meta').textContent=`Via ${n} · permintaan ini: ${r.i} masuk, ${r.o} keluar · total sejak dibuka: ${tin}/${tout}`}
+let tin=0,tout=0;function meta(r,n){tin+=r.i;tout+=r.o;$('meta').textContent=`Via ${n}${r.big?' (reasoning)':''} · permintaan ini: ${r.i} masuk, ${r.o} keluar · total sejak dibuka: ${tin}/${tout}`}
 function save(){const k=Object.keys(cache);if(k.length>300)delete cache[k[0]];L.setItem('tr_c3',JSON.stringify(cache))}
 const ICC='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',ICK='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',ICS='<svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 function parse(x){const ai=pm()==='ai',n=ai?3:2;
