@@ -93,6 +93,7 @@ async function call(s,system,text,max){
   pick=d=>[(d.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''),d.usageMetadata?.promptTokenCount||0,(d.usageMetadata?.candidatesTokenCount||0)+(d.usageMetadata?.thoughtsTokenCount||0),d.candidates?.[0]?.finishReason==='MAX_TOKENS']}
  else{url=b0+'/chat/completions';h.authorization='Bearer '+k;
   b={model:m,max_tokens:max+(s.bx?3000:0),temperature:0,messages:[{role:'system',content:system},{role:'user',content:text}]};
+  if(s.x){try{Object.assign(b,JSON.parse(s.x))}catch(e){}}
   if(t==='openrouter')b.reasoning=s.rt?{effort:'low',exclude:true}:{enabled:false};
   pick=d=>{const c=d.choices?.[0]?.message?.content;return [Array.isArray(c)?c.map(p=>p.text||'').join(''):(c||d.choices?.[0]?.text||''),d.usage?.prompt_tokens||0,d.usage?.completion_tokens||0,d.choices?.[0]?.finish_reason==='length']}}
  let r;try{r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify(b)})}catch(e){throw{st:0,msg:'tidak ada koneksi atau diblokir CORS'}}
@@ -102,7 +103,7 @@ async function call(s,system,text,max){
   if(t==='openrouter'&&!s.rt&&/reasoning|mandatory/i.test(msg))return call({...s,rt:1},system,text,max);
   throw{st:r.status,msg}}
  const [raw,i,o,cut]=pick(d);const x=raw.replace(/<think>[\s\S]*?(<\/think>|$)/gi,'').replace(/```/g,'').trim();
- if(!s.bx&&t!=='anthropic'&&t!=='gemini'&&(!x||cut&&!/[\u3400-\u9fff]/.test(x)))return call({...s,bx:1},system,text,max);
+ if(!s.bx&&t!=='anthropic'&&t!=='gemini'&&(!x||cut&&!/[\u3400-\u9fff]/.test(x))){const r2=await call({...s,bx:1},system,text,max);r2.i+=i;r2.o+=o;return r2}
  if(cut&&(t==='anthropic'||t==='gemini')&&(x.split('\n').filter(l=>l.trim()).length<2||!/[\u3400-\u9fff]/.test(x)))throw{st:0,msg:'jawaban terpotong (token habis, model mungkin berpikir panjang), coba model lain'};
  if(!x)throw{st:0,msg:'respons kosong'};
  if(!/[\u3400-\u9fff]/.test(x))throw{st:0,msg:'jawaban tanpa Hanzi (model reasoning atau terpotong), coba model lain'};
@@ -136,9 +137,9 @@ async function apiMulti(system,text,max,n){
  return out}
 function drawSlots(){const sl=$('sl');sl.textContent='';
  slots.forEach((s,i)=>{const d=document.createElement('div');d.className='slot';d.dataset.i=i;
-  d.innerHTML='<div class="sh"><b></b><select data-f="t">'+Object.keys(T).map(k=>'<option value="'+k+'"'+(k===s.t?' selected':'')+'>'+T[k].n+'</option>').join('')+'</select><button type="button" data-a="up">↑</button><button type="button" data-a="del">Hapus</button></div><input type="text" data-f="n" placeholder="Nama (opsional)"><input type="password" data-f="k" placeholder="API key" autocomplete="off"><input type="text" data-f="m" placeholder="Model"><input type="text" data-f="b" placeholder="Base URL">';
-  d.querySelector('b').textContent=lbl(i);for(const f of ['n','k','m','b'])d.querySelector('[data-f='+f+']').value=s[f]||'';
-  if(s.t==='anthropic'||s.t==='gemini')d.querySelector('[data-f=b]').style.display='none';
+  d.innerHTML='<div class="sh"><b></b><select data-f="t">'+Object.keys(T).map(k=>'<option value="'+k+'"'+(k===s.t?' selected':'')+'>'+T[k].n+'</option>').join('')+'</select><button type="button" data-a="up">↑</button><button type="button" data-a="del">Hapus</button></div><input type="text" data-f="n" placeholder="Nama (opsional)"><input type="password" data-f="k" placeholder="API key" autocomplete="off"><input type="text" data-f="m" placeholder="Model"><input type="text" data-f="b" placeholder="Base URL"><input type="text" data-f="x" placeholder="Parameter tambahan JSON, mis. {&quot;thinking&quot;:{&quot;type&quot;:&quot;disabled&quot;}}">';
+  d.querySelector('b').textContent=lbl(i);for(const f of ['n','k','m','b','x'])d.querySelector('[data-f='+f+']').value=s[f]||'';
+  if(s.t==='anthropic'||s.t==='gemini'){d.querySelector('[data-f=b]').style.display='none';d.querySelector('[data-f=x]').style.display='none'}
   sl.append(d)})}
 $('sl').addEventListener('input',e=>{const f=e.target.dataset.f;if(!f)return;const s=slots[e.target.closest('.slot').dataset.i];
  if(f==='t'){s.t=e.target.value;s.m=T[s.t].m;s.b=T[s.t].b||'';drawSlots()}else{s[f]=e.target.value.trim();if(f==='n')e.target.closest('.slot').querySelector('b').textContent=lbl(+e.target.closest('.slot').dataset.i)}saveSlots();for(const k in cool)delete cool[k]});
