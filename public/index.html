@@ -113,7 +113,7 @@ async function call(s,system,text,max){
   if(t==='openrouter'&&!s.rt&&/reasoning|mandatory/i.test(msg))return call({...s,rt:1},system,text,max);
   throw{st:r.status,msg}}
  const [raw,i,o,cut]=pick(d);const x=raw.replace(/<think>[\s\S]*?(<\/think>|$)/gi,'').replace(/```/g,'').trim();
-  if(t!=='anthropic'&&t!=='gemini'&&!s.big&&(!x||cut&&!/[㐀-鿿]/.test(x))){s.big=true;try{saveSlots()}catch(e){}const r2=await call(s,system,text,max);r2.i+=i;r2.o+=o;return r2}
+ if(t!=='anthropic'&&t!=='gemini'&&!s.big&&(!x||cut&&!/[\u3400-\u9fff]/.test(x))){s.big=true;try{saveSlots()}catch(e){}const r2=await call(s,system,text,max);r2.i+=i;r2.o+=o;return r2}
  if(cut&&(t==='anthropic'||t==='gemini')&&(x.split('\n').filter(l=>l.trim()).length<2||!/[\u3400-\u9fff]/.test(x)))throw{st:0,msg:'jawaban terpotong (token habis, model mungkin berpikir panjang), coba model lain'};
  if(!x)throw{st:0,msg:'respons kosong'+((t==='anthropic'||t==='gemini')?'':' (model kemungkinan berpikir panjang dan kehabisan token; isi Parameter tambahan untuk mematikan reasoning atau pakai model non-reasoning)')};
  if(!/[\u3400-\u9fff]/.test(x))throw{st:0,msg:'jawaban tanpa Hanzi (model reasoning atau terpotong), coba model lain'};
@@ -139,12 +139,18 @@ function sys1(n){const ai=pm()==='ai',base=ai?S1A:S1;if(n<2)return base;
 async function runOne(s,system,text,max){
  try{const r=await callR(s,system,text,max);meta(r,nm(s));return{l:nm(s),x:r.x}}
  catch(e){if(e.st===429)cool[s.id]=Date.now()+(/day|daily|harian/i.test(e.msg)?36e5:6e4);return{l:nm(s),err:String(e.msg).slice(0,90)}}}
-async function apiMulti(system,text,max,n){
+// Paralel penuh: tiap penyedia punya jalur sendiri. Hasil langsung dikirim ke onEach begitu siap;
+// kalau gagal, cadangan langsung dicoba di jalur itu tanpa menunggu jalur lain.
+async function apiMulti(system,text,max,n,onEach){
  const ok=slots.filter(s=>s.k);if(!ok.length){$('cfg').click();throw new Error('Isi API key di Pengaturan')}
  let live=ok.filter(s=>(cool[s.id]||0)<Date.now());if(live.length<n)live=ok;
- const pool=[...live],res=await Promise.all(pool.splice(0,n).map(s=>runOne(s,system,text,max))),out=[];
- for(let x of res){while(x.err&&pool.length)x=await runOne(pool.shift(),system,text,max);out.push(x)}
- return out}
+ const pool=live.slice(n);
+ const lane=async(s,i)=>{
+  let x=await runOne(s,system,text,max);
+  while(x.err&&pool.length)x=await runOne(pool.shift(),system,text,max);
+  if(onEach)onEach(i,x);
+  return x};
+ return Promise.all(live.slice(0,n).map(lane))}
 function drawSlots(){const sl=$('sl');sl.textContent='';
  slots.forEach((s,i)=>{const d=document.createElement('div');d.className='slot';d.dataset.i=i;
   d.innerHTML='<div class="sh"><b></b><select data-f="t">'+Object.keys(T).map(k=>'<option value="'+k+'"'+(k===s.t?' selected':'')+'>'+T[k].n+'</option>').join('')+'</select><button type="button" data-a="up">↑</button><button type="button" data-a="del">Hapus</button></div><input type="text" data-f="n" placeholder="Nama (opsional)"><input type="password" data-f="k" placeholder="API key" autocomplete="off"><input type="text" data-f="m" placeholder="Model"><input type="text" data-f="b" placeholder="Base URL"><input type="text" data-f="x" placeholder="Parameter tambahan JSON, mis. {&quot;thinking&quot;:{&quot;type&quot;:&quot;disabled&quot;}}">';
@@ -175,12 +181,14 @@ function mkCard(v,lab){const d=document.createElement('div');d.className='res';
  d.querySelector('.sp').onclick=()=>speak(v.h);
  cp.onclick=async()=>{try{await navigator.clipboard.writeText(v.h);cp.innerHTML=ICK;setTimeout(()=>cp.innerHTML=ICC,1200)}catch(e){}};
  c.ex.onclick=()=>explain(c);return c}
+function renderInto(box,r,multi){box.textContent='';let first=null;
+ if(multi){const g=document.createElement('div');g.className='grp';g.textContent=r.l;box.append(g)}
+ if(r.err){const e=document.createElement('div');e.className='ge';e.textContent='Gagal: '+r.err;box.append(e);return null}
+ const vs=parse(r.x);
+ vs.forEach((v,i)=>{const c=mkCard(v,vs.length>1?'Variasi '+(i+1):'');box.append(c.el);first=first||c});
+ return first}
 function renderAll(rs){const o=$('out');o.textContent='';let first=null;
- for(const r of rs){
-  if(rs.length>1){const g=document.createElement('div');g.className='grp';g.textContent=r.l;o.append(g)}
-  if(r.err){const e=document.createElement('div');e.className='ge';e.textContent='Gagal: '+r.err;o.append(e);continue}
-  const vs=parse(r.x);
-  vs.forEach((v,i)=>{const c=mkCard(v,vs.length>1?'Variasi '+(i+1):'');o.append(c.el);first=first||c})}
+ for(const r of rs){const b=document.createElement('div');o.append(b);const f=renderInto(b,r,rs.length>1);first=first||f}
  return first}
 function fmtExp(t){const ai=pm()==='ai',[c='',e='',n='']=t.split('---'),ls=x=>x.split('\n').map(l=>l.trim()).filter(Boolean);
  const chars=ls(c).map(l=>{if(ai)return l;const i=l.indexOf('=');if(i<0)return l;const k=l.slice(0,i).trim();return k+' ('+py(k)+') ='+l.slice(i+1)});
@@ -196,12 +204,20 @@ async function go(force){
  $('go').disabled=true;$('go').textContent='Menerjemahkan…';
  try{const ai=pm()==='ai',n=/[\u3400-\u9fff]/.test(text)?1:nv(),m=mp(),k='z|'+(ai?'a':'l')+n+(m?'2':'1')+'|'+text;
   let rs=(!force&&cache[k])?JSON.parse(cache[k]):null;
+  let drawn=false;
   if(!rs){const sys=sys1(n)+hints(text),max=Math.min(2000,(text.length*(ai?6:4)+150)*n);
-   if(m&&slots.filter(s=>s.k).length>1)rs=await apiMulti(sys,text,max,2);
+   if(m&&slots.filter(s=>s.k).length>1){
+    const o=$('out');o.textContent='';
+    const boxes=[0,1].map(()=>{const b=document.createElement('div');b.innerHTML='<div class="grp">Menunggu…</div>';o.append(b);return b});
+    let exd=false;
+    rs=await apiMulti(sys,text,max,2,(i,r)=>{
+     const f=renderInto(boxes[i],r,true);
+     if(f&&!exd&&$('auto').checked){exd=true;explain(f)}});
+    drawn=true}
    else rs=[{l:'',x:await api(sys,text,max)}];
    if(rs.every(r=>r.x)){cache[k]=JSON.stringify(rs);save()}
    else if(!rs.some(r=>r.x))throw new Error(rs.map(r=>r.l+': '+r.err).join(' | '))}
-  const f=renderAll(rs);if($('auto').checked&&f)await explain(f)}
+  if(!drawn){const f=renderAll(rs);if($('auto').checked&&f)await explain(f)}}
  catch(e){$('err').textContent='Gagal: '+e.message}
  $('go').disabled=false;$('go').textContent='Terjemahkan'}
 $('go').onclick=()=>go();$('rf').onclick=()=>go(true);
